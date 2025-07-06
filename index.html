@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Absen Guru Halaqah Qur'an</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Open+Sans:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: #f8f5f0;
+        }
+        
+        .arabic-text {
+            font-family: 'Amiri', serif;
+            font-size: 1.5rem;
+            color: #1a365d;
+        }
+        
+        .prayer-bg {
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
+                        url('https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/7dc25bbd-fdca-4ce2-81d9-8bcfac200082.png') no-repeat center center;
+            background-size: cover;
+        }
+        
+        .attendance-card {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .attendance-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .late-status {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center prayer-bg">
+        <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Sistem Absen Halaqah Qur'an</h1>
+                <p class="arabic-text mb-4">وَذَكِّرْ فَإِنَّ الذِّكْرَىٰ تَنفَعُ الْمُؤْمِنِينَ</p>
+                <p>"Dan tetaplah memberi peringatan, karena sesungguhnya peringatan itu bermanfaat bagi orang-orang yang beriman." (QS. Adz-Dzariyat: 55)</p>
+            </div>
+            
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                    <input type="text" id="username" name="username" required class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="password" name="password" required class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                        Masuk
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="appContainer" class="hidden min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                <div>
+                    <h1 class="text-xl font-semibold text-gray-900">Sistem Absen Halaqah Qur'an</h1>
+                    <p id="currentDate" class="text-sm text-gray-500"></p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="userGreeting" class="text-sm"></span>
+                    <button id="logoutBtn" class="text-sm text-red-600 hover:text-red-800">Keluar</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+            <!-- Tabs -->
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8">
+                    <button onclick="showTab('dashboard')" class="dashboard-tab whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm active">
+                        Dashboard
+                    </button>
+                    <button onclick="showTab('attendance')" class="attendance-tab whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Absensi
+                    </button>
+                    <button onclick="showTab('leave')" class="leave-tab whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Izin/Ketidakhadiran
+                    </button>
+                    <button onclick="showTab('admin')" id="adminTabBtn" class="admin-tab whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm hidden">
+                        Admin Dashboard
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div id="dashboardTab" class="tab-content py-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Today's Sessions -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-4 py-5 sm:px-6 bg-blue-100 border-b border-blue-200">
+                            <h3 class="text-lg leading-6 font-medium text-blue-800">Sesi Hari Ini</h3>
+                        </div>
+                        <div class="px-4 py-5 sm:p-6">
+                            <div class="space-y-4">
+                                <div class="mt-8 p-4 bg-blue-50 rounded-lg">
+                                    <h3 class="font-bold text-blue-800 mb-2">Cara Deployment:</h3>
+                                    <ol class="list-decimal pl-5 space-y-2 text-sm">
+                                        <li>Hosting di Firebase:
+                                            <ul class="list-disc pl-5 mt-1">
+                                                <li>Install Firebase CLI: <code class="bg-gray-200 px-1 rounded">npm install -g firebase-tools</code></li>
+                                                <li>Login: <code class="bg-gray-200 px-1 rounded">firebase login</code></li>
+                                                <li>Init project: <code class="bg-gray-200 px-1 rounded">firebase init hosting</code></li>
+                                                <li>Deploy: <code class="bg-gray-200 px-1 rounded">firebase deploy</code></li>
+                                            </ul>
+                                        </li>
+                                        <li>Hosting di Vercel/Netlify:
+                                            <ul class="list-disc pl-5 mt-1">
+                                                <li>Upload ke GitHub repository</li>
+                                                <li>Connect repository ke Vercel/Netlify</li>
+                                                <li>Configure build settings (jika perlu)</li>
+                                                <li>Deploy!</li>
+                                            </ul>
+                                        </li>
+                                        <li>Google Sheets Integration:
+                                            <ul class="list-disc pl-5 mt-1">
+                                                <li>Buat project di Google Cloud Console</li>
+                                                <li>Aktifkan Google Sheets API</li>
+                                                <li>Buat credentials (API Key & OAuth)</li>
+                                                <li>Ganti kode localStorage dengan API calls ke Google Sheets</li>
+                                            </ul>
+                                        </li>
+                                    </ol>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Sesi Pagi (05:00 - 06:25)</span>
+                                    <span id="morningStatus" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"></span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700" style="outline: rgb(0, 0, 0) dotted 3px; outline-offset: 1px;">Sesi Sore/Malam (18:30 - 19:30)</span>
+                                    <span id="eveningStatus" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Stats -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-4 py-5 sm:px-6 bg-green-100 border-b border-green-200">
+                            <h3 class="text-lg leading-6 font-medium text-green-800">Statistik Bulan Ini</h3>
+                        </div>
+                        <div class="px-4 py-5 sm:p-6">
+                            <div class="space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Kehadiran Pagi</span>
+                                    <span id="morningMonthlyCount" class="text-gray-900 font-medium">0/0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Kehadiran Malam</span>
+                                    <span id="eveningMonthlyCount" class="text-gray-900 font-medium">0/0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Keterlambatan</span>
+                                    <span id="lateMonthlyCount" class="text-gray-900 font-medium">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-4 py-5 sm:px-6 bg-indigo-100 border-b border-indigo-200">
+                            <h3 class="text-lg leading-6 font-medium text-indigo-800">Aksi Cepat</h3>
+                        </div>
+                        <div class="px-4 py-5 sm:p-6">
+                            <div class="grid grid-cols-1 gap-3">
+                                <button id="checkInBtn" class="w-full bg-blue-100 text-blue-700 py-2 px-4 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                                    Absen Masuk (Sesi Pagi)
+                                </button>
+                                <button id="checkInEveningBtn" class="w-full bg-blue-100 text-blue-700 py-2 px-4 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                                    Absen Masuk (Sesi Malam)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Tab -->
+            <div id="attendanceTab" class="tab-content py-6 hidden">
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <div class="px-4 py-5 sm:px-6 bg-gray-100 border-b border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">Riwayat Absensi</h3>
+                            <div class="flex space-x-2">
+                                <button id="exportExcelBtn" class="bg-green-100 text-green-700 py-1 px-3 rounded-md text-sm hover:bg-green-200">
+                                    Ekspor ke Excel
+                                </button>
+                                <button id="exportPdfBtn" class="bg-red-100 text-red-700 py-1 px-3 rounded-md text-sm hover:bg-red-200">
+                                    Ekspor ke PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-4 py-5 sm:p-6">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sesi</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Absen</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Attendance data will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leave Tab -->
+            <div id="leaveTab" class="tab-content py-6 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Submit Leave Request -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-4 py-5 sm:px-6 bg-yellow-100 border-b border-yellow-200">
+                            <h3 class="text-lg leading-6 font-medium text-yellow-800">Ajukan Izin/Ketidakhadiran</h3>
+                        </div>
+                        <div class="px-4 py-5 sm:p-6">
+                            <form id="leaveRequestForm" class="space-y-4">
+                                <div>
+                                    <label for="leaveDate" class="block text-sm font-medium text-gray-700">Tanggal</label>
+                                    <input type="date" id="leaveDate" name="leaveDate" required class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                
+                                <div>
+                                    <label for="leaveSession" class="block text-sm font-medium text-gray-700">Sesi</label>
+                                    <select id="leaveSession" name="leaveSession" required class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="">Pilih sesi</option>
+                                        <option value="morning">Pagi (05:00 - 06:25)</option>
+                                        <option value="evening">Sore/Malam (18:30 - 19:30)</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label for="leaveReason" class="block text-sm font-medium text-gray-700">Alasan</label>
+                                    <select id="leaveReason" name="leaveReason" required class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="">Pilih alasan</option>
+                                        <option value="sakit">Sakit</option>
+                                        <option value="izin">Izin</option>
+                                        <option value="lainnya">Lainnya</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label for="leaveNotes" class="block text-sm font-medium text-gray-700">Keterangan</label>
+                                    <textarea id="leaveNotes" name="leaveNotes" rows="3" class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                                </div>
+                                
+                                <div>
+                                    <button type="submit" class="w-full bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transition-colors">
+                                        Submit Izin
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Leave History -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-4 py-5 sm:px-6 bg-green-100 border-b border-green-200">
+                            <h3 class="text-lg leading-6 font-medium text-green-800">Riwayat Izin</h3>
+                        </div>
+                        <div class="px-4 py-5 sm:p-6">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sesi</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leaveHistoryBody" class="bg-white divide-y divide-gray-200">
+                                    <!-- Leave history will be inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Tab -->
+            <div id="adminTab" class="tab-content py-6 hidden">
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <div class="px-4 py-5 sm:px-6 bg-purple-100 border-b border-purple-200">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg leading-6 font-medium text-purple-800">Dashboard Admin</h3>
+                            <div class="flex space-x-2">
+                                <button id="adminExportExcelBtn" class="bg-green-100 text-green-700 py-1 px-3 rounded-md text-sm hover:bg-green-200">
+                                    Ekspor ke Excel
+                                </button>
+                                <button id="adminExportPdfBtn" class="bg-red-100 text-red-700 py-1 px-3 rounded-md text-sm hover:bg-red-200">
+                                    Ekspor ke PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-4 py-5 sm:p-6">
+                        <div class="mb-6">
+                            <label for="adminTeacherFilter" class="block text-sm font-medium text-gray-700">Filter Guru</label>
+                            <select id="adminTeacherFilter" class="mt-1 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="all">Semua Guru</option>
+                                <!-- Teachers will be dynamically added here -->
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                            <!-- Stats Cards -->
+                            <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <h3 class="text-lg font-medium text-gray-900">Total Kehadiran</h3>
+                                <p id="adminTotalAttendance" class="text-3xl font-bold text-blue-600">0</p>
+                            </div>
+                            <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <h3 class="text-lg font-medium text-gray-900">Total Keterlambatan</h3>
+                                <p id="adminTotalLate" class="text-3xl font-bold text-red-600">0</p>
+                            </div>
+                            <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <h3 class="text-lg font-medium text-gray-900">Total Izin</h3>
+                                <p id="adminTotalLeave" class="text-3xl font-bold text-yellow-600">0</p>
+                            </div>
+                        </div>
+
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Guru</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sesi Pagi</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sesi Malam</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keterlambatan</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Izin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Admin data will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Database simulation (in a real app, this would be Google Sheets API)
+        let teachers = [
+            { id: 1, username: "guru1", password: "password1", name: "Ustadz Ahmad", isAdmin: false },
+            { id: 2, username: "guru2", password: "password2", name: "Ustadzah Fatimah", isAdmin: false },
+            { id: 3, username: "admin", password: "admin123", name: "Admin Halaqah", isAdmin: true }
+        ];
+
+        let attendanceData = [];
+        let leaveRequests = [];
+        let currentUser = null;
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize local storage data
+            if (!localStorage.getItem('halaqahAttendanceData')) {
+                localStorage.setItem('halaqahAttendanceData', JSON.stringify(attendanceData));
+            } else {
+                attendanceData = JSON.parse(localStorage.getItem('halaqahAttendanceData'));
+            }
+
+            if (!localStorage.getItem('halaqahLeaveRequests')) {
+                localStorage.setItem('halaqahLeaveRequests', JSON.stringify(leaveRequests));
+            } else {
+                leaveRequests = JSON.parse(localStorage.getItem('halaqahLeaveRequests'));
+            }
+
+            // Set current date
+            const now = new Date();
+            document.getElementById('currentDate').textContent = formatDate(now);
+
+            // Login form handler
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                const teacher = teachers.find(t => t.username === username && t.password === password);
+                if (teacher) {
+                    currentUser = teacher;
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    document.getElementById('appContainer').classList.remove('hidden');
+                    document.getElementById('userGreeting').textContent = `Assalamualaikum, ${teacher.name}`;
+                    
+                    if (teacher.isAdmin) {
+                        document.getElementById('adminTabBtn').classList.remove('hidden');
+                        updateAdminDashboard();
+                    } else {
+                        document.getElementById('adminTabBtn').classList.add('hidden');
+                    }
+                    
+                    updateDashboard();
+                    updateAttendanceTable();
+                    updateLeaveHistory();
+                    
+                    // Check current session status
+                    checkSessionStatus();
+                } else {
+                    Swal.fire('Error', 'Username atau password salah', 'error');
+                }
+            });
+
+            // Logout handler
+            document.getElementById('logoutBtn').addEventListener('click', function() {
+                currentUser = null;
+                document.getElementById('loginScreen').classList.remove('hidden');
+                document.getElementById('appContainer').classList.add('hidden');
+                document.getElementById('loginForm').reset();
+            });
+
+            // Check-in buttons
+            document.getElementById('checkInBtn').addEventListener('click', function() {
+                checkIn('morning');
+            });
+
+            document.getElementById('checkInEveningBtn').addEventListener('click', function() {
+                checkIn('evening');
+            });
+
+            // Leave request form
+            document.getElementById('leaveRequestForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitLeaveRequest();
+            });
+
+            // Export buttons
+            document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+            document.getElementById('exportPdfBtn').addEventListener('click', exportToPDF);
+            document.getElementById('adminExportExcelBtn').addEventListener('click', adminExportToExcel);
+            document.getElementById('adminExportPdfBtn').addEventListener('click', adminExportToPDF);
+
+            // Admin filter
+            document.getElementById('adminTeacherFilter').addEventListener('change', updateAdminDashboard);
+        });
+
+        // Format date to Indonesian format
+        function formatDate(date) {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            return date.toLocaleDateString('id-ID', options);
+        }
+
+        // Show specific tab
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
+            });
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-600');
+                btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+            });
+
+            document.getElementById(`${tabName}Tab`).classList.remove('hidden');
+            document.querySelector(`.${tabName}-tab`).classList.add('border-blue-500', 'text-blue-600');
+            document.querySelector(`.${tabName}-tab`).classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+
+            if (tabName === 'admin') {
+                updateAdminDashboard();
+            }
+        }
+
+        // Check-in function
+        function checkIn(sessionType) {
+            const now = new Date();
+            const formattedDate = now.toISOString().split('T')[0];
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+            let status = 'hadir';
+            let isLate = false;
+            let whatsappMessage = `Assalamualaikum, ${currentUser.name} telah melakukan absensi.\n\n`;
+            
+            if (sessionType === 'morning') {
+                // Morning session: 05:00 - 06:25
+                const lateThreshold = new Date();
+                lateThreshold.setHours(5, 25, 0, 0); // 05:25 is late
+            
+                if (now > lateThreshold) {
+                    status = 'terlambat';
+                    isLate = true;
+                    whatsappMessage += `*Status:* Terlambat\n`;
+                }
+                
+                whatsappMessage += `*Sesi:* Pagi (05:00 - 06:25)\n`;
+            } else {
+                // Evening session: 18:30 - 19:30
+                const lateThreshold = new Date();
+                lateThreshold.setHours(18, 45, 0, 0); // 18:45 is late
+                
+                if (now > lateThreshold) {
+                    status = 'terlambat';
+                    isLate = true;
+                    whatsappMessage += `*Status:* Terlambat\n`;
+                }
+                
+                whatsappMessage += `*Sesi:* Sore/Malam (18:30 - 19:30)\n`;
+            }
+                        
+            const attendanceRecord = {
+                id: Date.now(),
+                teacherId: currentUser.id,
+                teacherName: currentUser.name,
+                date: formattedDate,
+                session: sessionType,
+                time: formattedTime,
+                status: status,
+                timestamp: now.getTime()
+            };
+
+            attendanceData.push(attendanceRecord);
+            localStorage.setItem('halaqahAttendanceData', JSON.stringify(attendanceData));
+
+            whatsappMessage += `*Waktu Absen:* ${formattedTime}\n`;
+            whatsappMessage += `*Tanggal:* ${formattedDate}\n\n`;
+            whatsappMessage += `Jazakumullah khairan.`;
+
+            if (isLate) {
+                Swal.fire({
+                    title: 'Anda Terlambat!',
+                    text: 'Anda telah melakukan absensi melebihi batas waktu yang ditentukan.',
+                    icon: 'warning',
+                    confirmButtonText: 'OK'
+                });
+            } else {
+                Swal.fire(
+                    'Absensi Berhasil!',
+                    `Anda telah berhasil melakukan absensi ${sessionType === 'morning' ? 'sesi pagi' : 'sesi malam'}.`,
+                    'success'
+                );
+            }
+
+            // In a real app, we would send this to the WhatsApp API
+            console.log('WhatsApp message that would be sent:\n', whatsappMessage);
+
+            updateDashboard();
+            updateAttendanceTable();
+        }
+
+        // Submit leave request
+        function submitLeaveRequest() {
+            const date = document.getElementById('leaveDate').value;
+            const session = document.getElementById('leaveSession').value;
+            const reason = document.getElementById('leaveReason').value;
+            const notes = document.getElementById('leaveNotes').value;
+
+            const leaveRequest = {
+                id: Date.now(),
+                teacherId: currentUser.id,
+                teacherName: currentUser.name,
+                date: date,
+                session: session,
+                reason: reason,
+                notes: notes,
+                status: 'pending',
+                timestamp: Date.now()
+            };
+
+            leaveRequests.push(leaveRequest);
+            localStorage.setItem('halaqahLeaveRequests', JSON.stringify(leaveRequests));
+
+            // WhatsApp notification
+            const whatsappMessage = `Assalamualaikum,\n\n${currentUser.name} mengajukan izin tidak hadir dengan detail:\n\n` +
+                                  `*Tanggal:* ${formatDate(new Date(date))}\n` +
+                                  `*Sesi:* ${session === 'morning' ? 'Pagi (05:00 - 06:25)' : 'Sore/Malam (18:30 - 19:30)'}\n` +
+                                  `*Alasan:* ${reason}\n` +
+                                  `*Keterangan:* ${notes || '-'}\n\n` +
+                                  `Silakan konfirmasi izin ini. Jazakumullah khairan.`;
+
+            console.log('WhatsApp message that would be sent:\n', whatsappMessage);
+
+            Swal.fire(
+                'Permohonan Izin Dikirim!',
+                'Permohonan izin Anda telah berhasil dikirim dan sedang menunggu persetujuan.',
+                'success'
+            );
+
+            document.getElementById('leaveRequestForm').reset();
+            updateLeaveHistory();
+        }
+
+        // Dashboard updates
+        function updateDashboard() {
+            const now = new Date();
+            const currentDate = now.toISOString().split('T')[0];
+            const currentMonth = now.getMonth() + 1;
+            const currentYear = now.getFullYear();
+            
+            // Filter today's attendance
+            const todayAttendance = attendanceData.filter(record => 
+                record.date === currentDate && record.teacherId === currentUser.id
+            );
+            
+            // Filter this month's attendance
+            const monthlyAttendance = attendanceData.filter(record => {
+                const recordDate = new Date(record.date);
+                return recordDate.getMonth() + 1 === currentMonth && 
+                       recordDate.getFullYear() === currentYear && 
+                       record.teacherId === currentUser.id;
+            });
+            
+            // Update morning session status
+            const morningAttendance = todayAttendance.find(record => record.session === 'morning');
+            const morningStatus = document.getElementById('morningStatus');
+            
+            if (morningAttendance) {
+                morningStatus.textContent = morningAttendance.status === 'terlambat' ? 'Terlambat' : 'Hadir';
+                morningStatus.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ' + 
+                    (morningAttendance.status === 'terlambat' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800');
+            } else {
+                morningStatus.textContent = 'Belum Absen';
+                morningStatus.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800';
+            }
+            
+            // Update evening session status
+            const eveningAttendance = todayAttendance.find(record => record.session === 'evening');
+            const eveningStatus = document.getElementById('eveningStatus');
+            
+            if (eveningAttendance) {
+                eveningStatus.textContent = eveningAttendance.status === 'terlambat' ? 'Terlambat' : 'Hadir';
+                eveningStatus.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ' + 
+                    (eveningAttendance.status === 'terlambat' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800');
+            } else {
+                eveningStatus.textContent = 'Belum Absen';
+                eveningStatus.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800';
+            }
+            
+            // Update monthly stats
+            const morningMonthlyCount = monthlyAttendance.filter(record => record.session === 'morning').length;
+            const eveningMonthlyCount = monthlyAttendance.filter(record => record.session === 'evening').length;
+            const lateMonthlyCount = monthlyAttendance.filter(record => record.status === 'terlambat').length;
+            const totalMonthlyDays = new Date(currentYear, currentMonth, 0).getDate();
+            
+            document.getElementById('morningMonthlyCount').textContent = `${morningMonthlyCount}/${totalMonthlyDays}`;
+            document.getElementById('eveningMonthlyCount').textContent = `${eveningMonthlyCount}/${totalMonthlyDays}`;
+            document.getElementById('lateMonthlyCount').textContent = lateMonthlyCount;
+            
+            // Update buttons based on current time
+            checkSessionStatus();
+        }
+
+        // Check current session status and update buttons
+        function checkSessionStatus() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            
+            const morningCheckInBtn = document.getElementById('checkInBtn');
+            const eveningCheckInBtn = document.getElementById('checkInEveningBtn');
+            
+            // Morning session: 05:00 - 06:25
+            const isMorningSession = (hours === 5 && minutes >= 0) || (hours === 6 && minutes <= 25);
+            
+            // Evening session: 18:30 - 19:30
+            const isEveningSession = (hours === 18 && minutes >= 30) || (hours === 19 && minutes <= 30);
+            
+            // Check if already checked in today
+            const currentDate = now.toISOString().split('T')[0];
+            const todayMorningAttendance = attendanceData.find(record => 
+                record.date === currentDate && 
+                record.session === 'morning' && 
+                record.teacherId === currentUser.id
+            );
+            
+            const todayEveningAttendance = attendanceData.find(record => 
+                record.date === currentDate && 
+                record.session === 'evening' && 
+                record.teacherId === currentUser.id
+            );
+            
+            // Update morning button
+            if (todayMorningAttendance) {
+                morningCheckInBtn.textContent = 'Sudah Absen (Sesi Pagi)';
+                morningCheckInBtn.disabled = true;
+                morningCheckInBtn.classList.remove('bg-blue-100', 'hover:bg-blue-200');
+                morningCheckInBtn.classList.add('bg-gray-200', 'cursor-not-allowed');
+            } else if (isMorningSession) {
+                morningCheckInBtn.textContent = 'Absen Masuk (Sesi Pagi)';
+                morningCheckInBtn.disabled = false;
+                morningCheckInBtn.classList.remove('bg-gray-200', 'cursor-not-allowed');
+                morningCheckInBtn.classList.add('bg-blue-100', 'hover:bg-blue-200');
+            } else {
+                morningCheckInBtn.textContent = 'Sesi Belum Dimulai (Sesi Pagi)';
+                morningCheckInBtn.disabled = true;
+                morningCheckInBtn.classList.remove('bg-blue-100', 'hover:bg-blue-200');
+                morningCheckInBtn.classList.add('bg-gray-200', 'cursor-not-allowed');
+            }
+            
+            // Update evening button
+            if (todayEveningAttendance) {
+                eveningCheckInBtn.textContent = 'Sudah Absen (Sesi Malam)';
+                eveningCheckInBtn.disabled = true;
+                eveningCheckInBtn.classList.remove('bg-blue-100', 'hover:bg-blue-200');
+                eveningCheckInBtn.classList.add('bg-gray-200', 'cursor-not-allowed');
+            } else if (isEveningSession) {
+                eveningCheckInBtn.textContent = 'Absen Masuk (Sesi Malam)';
+                eveningCheckInBtn.disabled = false;
+                eveningCheckInBtn.classList.remove('bg-gray-200', 'cursor-not-allowed');
+                eveningCheckInBtn.classList.add('bg-blue-100', 'hover:bg-blue-200');
+            } else {
+                eveningCheckInBtn.textContent = 'Sesi Belum Dimulai (Sesi Malam)';
+                eveningCheckInBtn.disabled = true;
+                eveningCheckInBtn.classList.remove('bg-blue-100', 'hover:bg-blue-200');
+                eveningCheckInBtn.classList.add('bg-gray-200', 'cursor-not-allowed');
+            }
+        }
+
+        // Update attendance table
+        function updateAttendanceTable() {
+            const tableBody = document.getElementById('attendanceTableBody');
+            tableBody.innerHTML = '';
+            
+            // Sort by date descending
+            const userAttendance = attendanceData
+                .filter(record => record.teacherId === currentUser.id)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            if (userAttendance.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">
+                        Belum ada riwayat absensi
+                    </td>
+                `;
+                tableBody.appendChild(row);
+                return;
+            }
+            
+            userAttendance.forEach(record => {
+                const row = document.createElement('tr');
+                const sessionName = record.session === 'morning' ? 'Pagi (05:00-06:25)' : 'Sore/Malam (18:30-19:30)';
+                const statusClass = record.status === 'terlambat' ? 
+                    'bg-red-100 text-red-800' : 'bg-green-100 text-green-800';
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${formatDate(new Date(record.date))}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${sessionName}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${record.time}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${record.status === 'terlambat' ? 'Terlambat' : 'Hadir'}
+                        </span>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Update leave history
+        function updateLeaveHistory() {
+            const tableBody = document.getElementById('leaveHistoryBody');
+            tableBody.innerHTML = '';
+            
+            const userLeaves = leaveRequests
+                .filter(leave => leave.teacherId === currentUser.id)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            if (userLeaves.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
+                        Belum ada riwayat izin
+                    </td>
+                `;
+                tableBody.appendChild(row);
+                return;
+            }
+            
+            userLeaves.forEach(leave => {
+                const row = document.createElement('tr');
+                const sessionName = leave.session === 'morning' ? 'Pagi' : 'Malam';
+                const statusClass = leave.status === 'approved' ? 
+                    'bg-green-100 text-green-800' : leave.status === 'rejected' ? 
+                    'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+                const statusText = leave.status === 'approved' ? 
+                    'Disetujui' : leave.status === 'rejected' ? 
+                    'Ditolak' : 'Menunggu';
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${formatDate(new Date(leave.date))}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${sessionName}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Update admin dashboard
+        function updateAdminDashboard() {
+            const filterValue = document.getElementById('adminTeacherFilter').value;
+            
+            // Filter data
+            let filteredAttendance = attendanceData;
+            let filteredLeaves = leaveRequests;
+            
+            if (filterValue !== 'all') {
+                const teacherId = parseInt(filterValue);
+                filteredAttendance = attendanceData.filter(record => record.teacherId === teacherId);
+                filteredLeaves = leaveRequests.filter(leave => leave.teacherId === teacherId);
+            }
+            
+            // Update stats
+            const totalAttendance = filteredAttendance.length;
+            const totalLate = filteredAttendance.filter(record => record.status === 'terlambat').length;
+            const totalLeave = filteredLeaves.length;
+            
+            document.getElementById('adminTotalAttendance').textContent = totalAttendance;
+            document.getElementById('adminTotalLate').textContent = totalLate;
+            document.getElementById('adminTotalLeave').textContent = totalLeave;
+            
+            // Update teacher filter dropdown
+            const teacherFilter = document.getElementById('adminTeacherFilter');
+            teacherFilter.innerHTML = '<option value="all">Semua Guru</option>';
+            
+            teachers.filter(t => !t.isAdmin).forEach(teacher => {
+                const option = document.createElement('option');
+                option.value = teacher.id;
+                option.textContent = teacher.name;
+                teacherFilter.appendChild(option);
+            });
+            
+            // Update teacher stats table
+            const tableBody = document.getElementById('adminTableBody');
+            tableBody.innerHTML = '';
+            
+            const teacherStats = {};
+            
+            // Initialize stats for each teacher
+            teachers.filter(t => !t.isAdmin).forEach(teacher => {
+                teacherStats[teacher.id] = {
+                    name: teacher.name,
+                    morningCount: 0,
+                    eveningCount: 0,
+                    lateCount: 0,
+                    leaveCount: 0
+                };
+            });
+            
+            // Count attendance
+            attendanceData.forEach(record => {
+                if (!teacherStats[record.teacherId]) return;
+                
+                if (record.session === 'morning') {
+                    teacherStats[record.teacherId].morningCount++;
+                } else {
+                    teacherStats[record.teacherId].eveningCount++;
+                }
+                
+                if (record.status === 'terlambat') {
+                    teacherStats[record.teacherId].lateCount++;
+                }
+            });
+            
+            // Count leaves
+            leaveRequests.forEach(leave => {
+                if (!teacherStats[leave.teacherId]) return;
+                
+                // Only count approved leaves
+                if (leave.status === 'approved') {
+                    teacherStats[leave.teacherId].leaveCount++;
+                }
+            });
+            
+            // Populate table
+            Object.values(teacherStats).forEach(stats => {
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${stats.name}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${stats.morningCount}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${stats.eveningCount}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${stats.lateCount > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                            ${stats.lateCount}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            ${stats.leaveCount}
+                        </span>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // If filtering and no data, show empty message
+            if (filterValue !== 'all' && Object.keys(teacherStats).length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">
+                        Tidak ada data untuk guru ini
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            }
+        }
+
+        // Export to Excel
+        function exportToExcel() {
+            const userAttendance = attendanceData
+                .filter(record => record.teacherId === currentUser.id)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            if (userAttendance.length === 0) {
+                Swal.fire('Error', 'Tidak ada data absensi untuk diekspor', 'error');
+                return;
+            }
+            
+            // Prepare worksheet data
+            const wsData = [
+                ['Tanggal', 'Sesi', 'Waktu Absen', 'Status'],
+                ...userAttendance.map(record => [
+                    formatDate(new Date(record.date)),
+                    record.session === 'morning' ? 'Pagi (05:00-06:25)' : 'Sore/Malam (18:30-19:30)',
+                    record.time,
+                    record.status === 'terlambat' ? 'Terlambat' : 'Hadir'
+                ])
+            ];
+            
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Absensi');
+            
+            // Generate file name
+            const now = new Date();
+            const fileName = `absensi_halaqah_${currentUser.name}_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`;
+            
+            XLSX.writeFile(wb, fileName);
+        }
+
+        // Export to PDF
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Add title
+            doc.setFontSize(18);
+            doc.text(`Laporan Absensi Halaqah - ${currentUser.name}`, 105, 15, { align: 'center' });
+            
+            // Add date
+            doc.setFontSize(12);
+            doc.text(`Dicetak pada: ${formatDate(new Date())}`, 105, 22, { align: 'center' });
+            
+            // Prepare data
+            const userAttendance = attendanceData
+                .filter(record => record.teacherId === currentUser.id)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            if (userAttendance.length === 0) {
+                doc.setFontSize(12);
+                doc.text('Tidak ada data absensi', 105, 40, { align: 'center' });
+                doc.save(`absensi_halaqah_${currentUser.name}.pdf`);
+                return;
+            }
+            
+            // Define table columns
+            const columns = [
+                { header: 'Tanggal', dataKey: 'date' },
+                { header: 'Sesi', dataKey: 'session' },
+                { header: 'Waktu Absen', dataKey: 'time' },
+                { header: 'Status', dataKey: 'status' }
+            ];
+            
+            // Transform data for PDF
+            const tableData = userAttendance.map(record => ({
+                date: formatDate(new Date(record.date)),
+                session: record.session === 'morning' ? 'Pagi (05:00-06:25)' : 'Sore/Malam (18:30-19:30)',
+                time: record.time,
+                status: record.status === 'terlambat' ? 'Terlambat' : 'Hadir'
+            }));
+            
+            // Add table
+            doc.autoTable({
+                columns: columns,
+                body: tableData,
+                startY: 30,
+                margin: { horizontal: 10 },
+                styles: { 
+                    font: 'helvetica',
+                    fontSize: 10,
+                    cellPadding: 5,
+                    overflow: 'linebreak'
+                },
+                headerStyles: {
+                    fillColor: [41, 128, 185],
+                    textColor: 255,
+                    fontStyle: 'bold'
+                }
+            });
+            
+            // Save the PDF
+            doc.save(`absensi_halaqah_${currentUser.name}.pdf`);
+        }
+
+        // Admin export to Excel
+        function adminExportToExcel() {
+            const filterValue = document.getElementById('adminTeacherFilter').value;
+            let filteredAttendance = attendanceData;
+            
+            if (filterValue !== 'all') {
+                const teacherId = parseInt(filterValue);
+                filteredAttendance = attendanceData.filter(record => record.teacherId === teacherId);
+            }
+            
+            if (filteredAttendance.length === 0) {
+                Swal.fire('Error', 'Tidak ada data absensi untuk diekspor', 'error');
+                return;
+            }
+            
+            // Prepare worksheet data
+            const wsData = [
+                ['Nama Guru', 'Tanggal', 'Sesi', 'Waktu Absen', 'Status'],
+                ...filteredAttendance.map(record => [
+                    record.teacherName,
+                    formatDate(new Date(record.date)),
+                    record.session === 'morning' ? 'Pagi (05:00-06:25)' : 'Sore/Malam (18:30-19:30)',
+                    record.time,
+                    record.status === 'terlambat' ? 'Terlambat' : 'Hadir'
+                ])
+            ];
+            
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Absensi');
+            
+            // Generate file name
+            const now = new Date();
+            const fileName = filterValue === 'all' ? 
+                `absensi_halaqah_semua_guru_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx` :
+                `absensi_halaqah_${filteredAttendance[0].teacherName}_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}.xlsx`;
+            
+            XLSX.writeFile(wb, fileName);
+        }
+
+        // Admin export to PDF
+        function adminExportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const filterValue = document.getElementById('adminTeacherFilter').value;
+            let filteredAttendance = attendanceData;
+            
+            if (filterValue !== 'all') {
+                const teacherId = parseInt(filterValue);
+                filteredAttendance = attendanceData.filter(record => record.teacherId === teacherId);
+            }
+            
+            // Add title
+            doc.setFontSize(18);
+            const title = filterValue === 'all' ? 
+                'Laporan Absensi Halaqah - Semua Guru' : 
+                `Laporan Absensi Halaqah - ${filteredAttendance[0]?.teacherName || ''}`;
+            doc.text(title, 105, 15, { align: 'center' });
+            
+            // Add date
+            doc.setFontSize(12);
+            doc.text(`Dicetak pada: ${formatDate(new Date())}`, 105, 22, { align: 'center' });
+            
+            if (filteredAttendance.length === 0) {
+                doc.setFontSize(12);
+                doc.text('Tidak ada data absensi', 105, 40, { align: 'center' });
+                doc.save(`absensi_halaqah_${filterValue === 'all' ? 'semua_guru' : filteredAttendance[0]?.teacherName || 'guru'}.pdf`);
+                return;
+            }
+            
+            // Define table columns
+            const columns = [
+                { header: 'Nama Guru', dataKey: 'teacherName' },
+                { header: 'Tanggal', dataKey: 'date' },
+                { header: 'Sesi', dataKey: 'session' },
+                { header: 'Waktu Absen', dataKey: 'time' },
+                { header: 'Status', dataKey: 'status' }
+            ];
+            
+            // Transform data for PDF
+            const tableData = filteredAttendance.map(record => ({
+                teacherName: record.teacherName,
+                date: formatDate(new Date(record.date)),
+                session: record.session === 'morning' ? 'Pagi (05:00-06:25)' : 'Sore/Malam (18:30-19:30)',
+                time: record.time,
+                status: record.status === 'terlambat' ? 'Terlambat' : 'Hadir'
+            }));
+            
+            // Add table
+            doc.autoTable({
+                columns: columns,
+                body: tableData,
+                startY: 30,
+                margin: { horizontal: 10 },
+                styles: { 
+                    font: 'helvetica',
+                    fontSize: 10,
+                    cellPadding: 5,
+                    overflow: 'linebreak'
+                },
+                headerStyles: {
+                    fillColor: [41, 128, 185],
+                    textColor: 255,
+                    fontStyle: 'bold'
+                }
+            });
+            
+            // Save the PDF
+            doc.save(`absensi_halaqah_${filterValue === 'all' ? 'semua_guru' : filteredAttendance[0].teacherName}.pdf`);
+        }
+    </script>
+</body>
+</html>
+
